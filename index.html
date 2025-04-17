@@ -1,0 +1,695 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Vertical Art Gallery</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.11.4/dist/gsap.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: 'Helvetica Neue', sans-serif;
+            touch-action: none;
+        }
+        
+        #canvas-container {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+        }
+        
+        #ui-container {
+            position: absolute;
+            bottom: 0;
+            width: 100%;
+            padding: 2rem;
+            box-sizing: border-box;
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            backdrop-filter: blur(10px);
+            transform: translateY(100%);
+            transition: transform 0.5s ease;
+            z-index: 10;
+        }
+        
+        #ui-container.show {
+            transform: translateY(0);
+        }
+        
+        .art-title {
+            font-size: 2rem;
+            font-weight: bold;
+            margin-bottom: 1rem;
+            color: #f8f8f8;
+        }
+        
+        .art-description {
+            font-size: 1rem;
+            line-height: 1.6;
+            color: #e0e0e0;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        
+        .close-btn {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            background: none;
+            border: none;
+            color: white;
+            font-size: 1.5rem;
+            cursor: pointer;
+            transition: transform 0.2s ease;
+        }
+        
+        .close-btn:hover {
+            transform: scale(1.2);
+        }
+        
+        .highlight {
+            box-shadow: 0 0 30px 10px rgba(255, 215, 0, 0.7);
+            transform: scale(1.05);
+            transition: all 0.3s ease;
+        }
+        
+        #instructions {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: white;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 12px 16px;
+            border-radius: 8px;
+            font-size: 14px;
+            z-index: 10;
+            backdrop-filter: blur(5px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            text-align: center;
+            pointer-events: none;
+        }
+        
+        .art-frame {
+            border: 15px solid #2c2c2c;
+            box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1);
+        }
+        
+        #controls {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            z-index: 10;
+            display: flex;
+            gap: 10px;
+        }
+        
+        .control-btn {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: rgba(0, 0, 0, 0.5);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            user-select: none;
+            backdrop-filter: blur(5px);
+        }
+        
+        @media (max-width: 768px) {
+            .art-title {
+                font-size: 1.5rem;
+            }
+            
+            .art-description {
+                font-size: 0.9rem;
+            }
+            
+            #ui-container {
+                padding: 1rem;
+            }
+            
+            #instructions {
+                width: 90%;
+                font-size: 12px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="canvas-container"></div>
+    <div id="instructions">
+        Drag or swipe to rotate the gallery. Tap on artwork to view details.
+    </div>
+    <div id="ui-container">
+        <button class="close-btn" id="close-btn">×</button>
+        <div class="art-title" id="art-title">Artwork Title</div>
+        <div class="art-description" id="art-description">Artwork description will appear here when you click on a piece.</div>
+    </div>
+    <div id="controls">
+        <div class="control-btn" id="reset-view">↻</div>
+    </div>
+
+    <script>
+        // Initialize Three.js scene
+        const container = document.getElementById('canvas-container');
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // Limit pixel ratio for performance
+        container.appendChild(renderer.domElement);
+
+        // Scene setup
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x111111);
+        
+        // Camera setup - locked to center and parallel to floor/ceiling
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 0, 0);
+        camera.rotation.set(0, 0, 0);
+        
+        // For debugging texture issues
+        function createDebugTexture(color, text) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 512;
+            canvas.height = 512;
+            const ctx = canvas.getContext('2d');
+            
+            // Fill with color
+            ctx.fillStyle = color;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Add text
+            ctx.fillStyle = "white";
+            ctx.font = "60px Arial";
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            ctx.fillText(text, canvas.width/2, canvas.height/2);
+            
+            const texture = new THREE.CanvasTexture(canvas);
+            return texture;
+        }
+        
+        // Enhanced lighting
+        const ambientLight = new THREE.AmbientLight(0x404040, 0.8);
+        scene.add(ambientLight);
+        
+        
+        // Add subtle fog for depth
+        scene.fog = new THREE.FogExp2(0x111111, 0.05);
+        
+        // Circular hallway parameters
+        const radius = 10;
+        const numArtPieces = 8;
+        const artPieces = [];
+        const textureLoader = new THREE.TextureLoader();
+        
+        // Use placeholder images that will definitely load
+        const placeholderImages = [
+            'https://i.imgur.com/mv2DaGr.jpeg',
+            'https://i.imgur.com/tEtzdsd.jpeg',
+            'https://i.imgur.com/sw7DEHh.jpeg',
+            'https://i.imgur.com/prg4e8z.jpeg?auto=format&fit=crop&w=800&q=80',
+            'https://i.imgur.com/pGJQA3e.jpeg?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80',
+            'https://i.imgur.com/MtoacMq.jpeg?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80',
+            'https://i.imgur.com/LVcF7BQ.jpeg?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80',
+            'https://i.imgur.com/MDGM8Wc.jpeg'
+        ];
+        
+        // Art data with updated image URLs
+        const artData = [
+            {
+                title: "Starry Night",
+                description: "Vincent van Gogh's swirling night sky over a quiet town, painted in 1889. This masterpiece is known for its bold use of color and dramatic, expressive brushwork that evokes strong emotions.",
+                imageUrl: placeholderImages[0],
+                artist: "Vincent van Gogh",
+                year: "1889"
+            },
+            {
+                title: "The Persistence of Memory",
+                description: "Salvador Dalí's surrealist masterpiece from 1931 featuring melting clocks in a dreamlike landscape. This work explores the fluidity of time and the subconscious mind.",
+                imageUrl: placeholderImages[1],
+                artist: "Salvador Dalí",
+                year: "1931"
+            },
+            {
+                title: "The Scream",
+                description: "Edvard Munch's iconic expressionist work from 1893 representing human anxiety. The agonized face has become one of the most iconic images of art, seen as symbolizing the anxiety of modern man.",
+                imageUrl: placeholderImages[2],
+                artist: "Edvard Munch",
+                year: "1893"
+            },
+            {
+                title: "Girl with a Pearl Earring",
+                description: "Johannes Vermeer's mysterious portrait painted around 1665. Often referred to as the 'Mona Lisa of the North', this painting is renowned for its subtle color palette and the subject's enigmatic gaze.",
+                imageUrl: placeholderImages[3],
+                artist: "Johannes Vermeer",
+                year: "1665"
+            },
+            {
+                title: "The Birth of Venus",
+                description: "Sandro Botticelli's Renaissance painting from 1486 depicting the goddess Venus emerging from the sea. The painting celebrates beauty and love through its elegant composition and flowing lines.",
+                imageUrl: placeholderImages[4],
+                artist: "Sandro Botticelli",
+                year: "1486"
+            },
+            {
+                title: "Guernica",
+                description: "Pablo Picasso's powerful anti-war mural from 1937 depicting the bombing of Guernica during the Spanish Civil War. The monochromatic palette and chaotic composition convey the horror of war.",
+                imageUrl: placeholderImages[5],
+                artist: "Pablo Picasso",
+                year: "1937"
+            },
+            {
+                title: "The Kiss",
+                description: "Gustav Klimt's golden painting from 1908 of an embracing couple in a field of flowers. This Art Nouveau masterpiece is celebrated for its ornate gold leaf decoration and romantic subject matter.",
+                imageUrl: placeholderImages[6],
+                artist: "Gustav Klimt",
+                year: "1908"
+            },
+            {
+                title: "Mona Lisa",
+                description: "Leonardo da Vinci's enigmatic portrait of Lisa Gherardini painted between 1503-1519. The painting's mysterious smile and masterful sfumato technique have fascinated viewers for centuries.",
+                imageUrl: placeholderImages[7],
+                artist: "Leonardo da Vinci",
+                year: "1503-1519"
+            }
+        ];
+
+        // Create circular hallway with art pieces - completely rewritten
+        for (let i = 0; i < numArtPieces; i++) {
+            const angle = (i / numArtPieces) * Math.PI * 2;
+            const x = Math.sin(angle) * radius;
+            const z = Math.cos(angle) * radius;
+            
+            // Create a debug texture with index and name
+            const debugTexture = createDebugTexture(
+                `hsl(${i * 45}, 70%, 50%)`, 
+                artData[i].title
+            );
+            
+            // Create a plane for the artwork (simpler than a BoxGeometry)
+            const artGeometry = new THREE.PlaneGeometry(2, 1.5);
+            const artMaterial = new THREE.MeshStandardMaterial({
+                map: debugTexture,
+                emissive: 0x111111,
+                emissiveIntensity: 0.1,
+                side: THREE.DoubleSide, // Show from both sides
+                roughness: 0.5,
+                metalness: 0.2
+            });
+            
+            const artPiece = new THREE.Mesh(artGeometry, artMaterial);
+            
+            // Position the artwork
+            artPiece.position.set(x, 0, z);
+            
+            // Make artwork face center (inward)
+            artPiece.lookAt(0, 0, 0);
+            
+            // Store the original angle for camera positioning
+            artPiece.userData = {
+                ...artData[i],
+                angle: angle
+            };
+            
+            // Create a frame for the artwork
+            const frameWidth = 0.1;
+            const frameGeometry = new THREE.BoxGeometry(
+                2 + frameWidth * 2, 
+                1.5 + frameWidth * 2, 
+                0.1
+            );
+            
+            const frameMaterial = new THREE.MeshStandardMaterial({
+                color: 0xFFD700,
+                metalness: 0.5,
+                roughness: 0.7
+            });
+            
+            const frame = new THREE.Mesh(frameGeometry, frameMaterial);
+            frame.position.copy(artPiece.position);
+            frame.rotation.copy(artPiece.rotation);
+            
+            // Move the frame slightly behind the artwork
+            const direction = new THREE.Vector3(0, 0, 0).sub(frame.position).normalize();
+            frame.position.add(direction.multiplyScalar(-0.1));
+            
+            scene.add(frame);
+            scene.add(artPiece);
+            artPieces.push(artPiece);
+            
+            const centerLight = new THREE.PointLight(0xffffff, 2.5, 10.4);
+            centerLight.position.set(0, 0, 0);
+            scene.add(centerLight);
+
+            // Now try loading the actual images
+            const actualImageUrl = artData[i].imageUrl;
+            
+            // Keep a reference to the art piece for closure
+            const currentArtPiece = artPiece;
+            
+            // Load the actual texture if available
+            textureLoader.load(
+                actualImageUrl, 
+                (texture) => {
+                    // When texture loads successfully, replace the debug texture
+                    currentArtPiece.material.map = texture;
+                    currentArtPiece.material.needsUpdate = true;
+                    currentArtPiece.material.map.needsUpdate = true;
+                    currentArtPiece.material.emissiveMap = texture; // Add emissive map
+                    console.log(`Successfully loaded texture for ${artData[i].title}`);
+                },
+                undefined,
+                (err) => {
+                    console.error(`Failed to load texture for ${artData[i].title}:`, err);
+                    // Keep the debug texture on error
+                }
+            );
+        }
+        
+        // Add decorative floor with pattern
+        const floorGeometry = new THREE.CircleGeometry(radius + 2, 32);
+        //const floorTexture = new THREE.TextureLoader().load('data:image/svg+xml;charset=utf-8,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100"><rect width="100" height="100" fill="%23222222"/><circle cx="50" cy="50" r="40" fill="none" stroke="%23333333" stroke-width="2"/><circle cx="50" cy="50" r="30" fill="none" stroke="%23333333" stroke-width="1"/><circle cx="50" cy="50" r="20" fill="none" stroke="%23333333" stroke-width="1"/></svg>');
+        //const floorTexture = new THREE.TextureLoader().load('data:image/svg+xml;charset=utf-8,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100"><rect width="100" height="100" fill="%23bfa24a"/><path d="M0,0 L100,100 M100,0 L0,100" stroke="%23e5cc74" stroke-width="1" /></svg>');
+        //const floorTexture = new THREE.TextureLoader().load('data:image/svg+xml;charset=utf-8,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><rect width="100" height="100" fill="%23807060"/><path d="M0 50H100M50 0V100" stroke="%23908070" stroke-width="1" /></svg>');
+        //const floorTexture = new THREE.TextureLoader().load('data:image/svg+xml;charset=utf-8,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><rect width="100" height="100" fill="%239c8f70"/><circle cx="50" cy="50" r="30" fill="none" stroke="%23c0b080" stroke-width="2"/></svg>');
+        //const floorTexture = new THREE.TextureLoader().load('data:image/svg+xml;charset=utf-8,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><rect width="100" height="100" fill="%23504030"/><path d="M0 0 L100 100 M0 100 L100 0" stroke="%23605040" stroke-width="0.5"/></svg>');
+        // const floorTexture = new THREE.TextureLoader().load('data:image/svg+xml;charset=utf-8,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><rect width="100" height="100" fill="%23f8f4e3"/><path d="M0 25H100M0 50H100M0 75H100M25 0V100M50 0V100M75 0V100" stroke="%23e6ddc4" stroke-width="1"/></svg>');
+        //const floorTexture = new THREE.TextureLoader().load('data:image/svg+xml;charset=utf-8,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><rect width="100" height="100" fill="%23333333"/><circle cx="50" cy="50" r="40" fill="none" stroke="%23d4af37" stroke-width="2"/><circle cx="50" cy="50" r="30" fill="none" stroke="%23d4af37" stroke-width="1"/></svg>');
+        const floorTexture = new THREE.TextureLoader().load(
+            'data:image/svg+xml;charset=utf-8,<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 100 100"><rect width="100" height="100" fill="%23333333"/><circle cx="50" cy="50" r="40" fill="none" stroke="%23d4af37" stroke-width="2"/><circle cx="50" cy="50" r="30" fill="none" stroke="%23d4af37" stroke-width="1"/></svg>',
+            (tex) => {
+                tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+                tex.minFilter = THREE.LinearMipMapLinearFilter;
+                tex.magFilter = THREE.LinearFilter;
+                tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+                tex.repeat.set(10.5, 10.5); // Adjust tiling density
+                tex.needsUpdate = true;
+            }
+        );
+        //const floorTexture = new THREE.TextureLoader().load('data:image/svg+xml;charset=utf-8,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><rect width="100" height="100" fill="%23807060"/><path d="M0 50H100M50 0V100" stroke="%23605040" stroke-width="1"/></svg>');
+
+        floorTexture.wrapS = floorTexture.wrapT = THREE.RepeatWrapping;
+        floorTexture.repeat.set(10, 10);
+        
+        const floorMaterial = new THREE.MeshStandardMaterial({ 
+            map: floorTexture,
+            side: THREE.DoubleSide,
+            roughness: 0.5,
+            metalness: 1
+        });
+        const floor = new THREE.Mesh(floorGeometry, floorMaterial);
+        floor.rotation.x = Math.PI / 2;
+        floor.position.y = -2;
+        scene.add(floor);
+
+        // Add ceiling with subtle pattern
+        const ceilingGeometry = new THREE.CircleGeometry(radius + 2, 32);
+        const ceilingMaterial = new THREE.MeshStandardMaterial({ 
+            color: 0x1a1a1a,
+            side: THREE.DoubleSide,
+            roughness: 0.9,
+            metalness: 0.1
+        });
+        const ceiling = new THREE.Mesh(ceilingGeometry, ceilingMaterial);
+        ceiling.position.y = 2;
+        ceiling.rotation.x = -Math.PI / 2;
+        scene.add(ceiling);
+
+        // Add ambient occlusion
+        const ambientOcclusion = new THREE.AmbientLight(0x404040, 0.5);
+        scene.add(ambientOcclusion);
+
+        // Add decorative light fixtures
+        for (let i = 0; i < 8; i++) {
+            const angle = (i / 8) * Math.PI * 2;
+            const x = Math.sin(angle) * (radius + 1);
+            const z = Math.cos(angle) * (radius + 1);
+            
+            const light = new THREE.PointLight(0xffeedd, 0.8, 6);
+            light.position.set(x, 1.8, z);
+            scene.add(light);
+            
+            const lightGeometry = new THREE.SphereGeometry(0.1, 16, 16);
+            const lightMaterial = new THREE.MeshBasicMaterial({ color: 0xffeedd });
+            const lightBulb = new THREE.Mesh(lightGeometry, lightMaterial);
+            lightBulb.position.set(x, 1.8, z);
+            scene.add(lightBulb);
+        }
+
+        // Add spotlights for each artwork
+        for (let i = 0; i < numArtPieces; i++) {
+            const angle = (i / numArtPieces) * Math.PI * 2;
+            const x = Math.sin(angle) * radius;
+            const z = Math.cos(angle) * radius;
+            
+            const spotLight = new THREE.SpotLight(0xffffff, 1);
+            spotLight.position.set(x, 1.8, z);
+            spotLight.target.position.set(0, 0, 0);
+            spotLight.angle = 0.5;
+            spotLight.penumbra = 0.2;
+            spotLight.distance = 10;
+            spotLight.castShadow = true;
+            scene.add(spotLight);
+            scene.add(spotLight.target);
+        }
+
+        // UI elements
+        const uiContainer = document.getElementById('ui-container');
+        const artTitle = document.getElementById('art-title');
+        const artDescription = document.getElementById('art-description');
+        const closeBtn = document.getElementById('close-btn');
+        const resetViewBtn = document.getElementById('reset-view');
+        
+        closeBtn.addEventListener('click', () => {
+            uiContainer.classList.remove('show');
+            
+            // Remove highlight from all art pieces
+            artPieces.forEach(piece => {
+                piece.material.emissive.setHex(0x111111);
+                piece.scale.set(1, 1, 1);
+            });
+            
+            // Return to center of the room
+            gsap.to(camera.position, {
+                x: 0,
+                y: 0,
+                z: 0,
+                duration: 0.8,
+                ease: "power2.out",
+                onComplete: () => {
+                    isArtSelected = false;
+                }
+            });
+        });
+
+        resetViewBtn.addEventListener('click', () => {
+            gsap.to(camera.rotation, {
+                y: 0,
+                duration: 1,
+                ease: "power2.out"
+            });
+        });
+
+        // Rotation controls
+        let isDragging = false;
+        let isArtSelected = false;
+        let previousMousePosition = { x: 0, y: 0 };
+        let rotationSpeed = 0.002;
+        const DEFAULT_ROTATION_SPEED = 0.01; // Constant horizontal rotation speed
+        
+        // Mouse controls - only horizontal movement
+        container.addEventListener('mousedown', (e) => {
+            isDragging = true;
+            previousMousePosition = {
+                x: e.clientX,
+                y: e.clientY
+            };
+        });
+        
+        container.addEventListener('mousemove', (e) => {
+            if (isDragging && !isArtSelected) {
+                const deltaMove = {
+                    x: e.clientX - previousMousePosition.x,
+                    y: e.clientY - previousMousePosition.y
+                };
+                
+                camera.rotation.y += deltaMove.x * rotationSpeed;
+                
+                previousMousePosition = {
+                    x: e.clientX,
+                    y: e.clientY
+                };
+            }
+        });
+        
+        container.addEventListener('mouseup', () => {
+            isDragging = false;
+        });
+        
+        container.addEventListener('mouseleave', () => {
+            isDragging = false;
+        });
+        
+        // Touch controls - only horizontal movement
+        container.addEventListener('touchstart', (e) => {
+            isDragging = true;
+            previousMousePosition = {
+                x: e.touches[0].clientX,
+                y: e.touches[0].clientY
+            };
+            e.preventDefault();
+        }, { passive: false });
+        
+        container.addEventListener('touchmove', (e) => {
+            if (isDragging && !isArtSelected) {
+                const deltaMove = {
+                    x: e.touches[0].clientX - previousMousePosition.x,
+                    y: e.touches[0].clientY - previousMousePosition.y
+                };
+                
+                camera.rotation.y += deltaMove.x * rotationSpeed * 1.5; // Faster on touch
+                
+                previousMousePosition = {
+                    x: e.touches[0].clientX,
+                    y: e.touches[0].clientY
+                };
+                e.preventDefault();
+            }
+        }, { passive: false });
+        
+        container.addEventListener('touchend', () => {
+            isDragging = false;
+        });
+
+        // Raycaster for detecting clicks on art pieces
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+        
+        function onMouseClick(event) {
+            // Calculate mouse position in normalized device coordinates
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+            
+            // Update the raycaster
+            raycaster.setFromCamera(mouse, camera);
+            
+            // Calculate objects intersecting the ray
+            const intersects = raycaster.intersectObjects(artPieces);
+            
+            if (intersects.length > 0) {
+                isArtSelected = true;
+                const clickedArt = intersects[0].object;
+                
+                // Remove highlight from all art pieces
+                artPieces.forEach(piece => {
+                    piece.material.emissive.setHex(0x111111);
+                    piece.scale.set(1, 1, 1);
+                });
+                
+                // Add highlight to clicked art piece
+                clickedArt.material.emissive.setHex(0x333333);
+                clickedArt.scale.set(1.05, 1.05, 1.05);
+                
+                // Update UI with art data
+                artTitle.textContent = clickedArt.userData.title;
+                artDescription.textContent = `${clickedArt.userData.description}\n\nArtist: ${clickedArt.userData.artist}\nYear: ${clickedArt.userData.year}`;
+                
+                // Show UI panel
+                uiContainer.classList.add('show');
+                
+                // Fixed approach for viewing artwork: use stored angle to position camera correctly
+                const artAngle = clickedArt.userData.angle;
+                
+                // Calculate position at a fixed distance inside the circle from the artwork
+                const distanceFromCenter = radius - 3; // Position inside the circle
+                
+                // Calculate the camera position
+                const cameraX = Math.sin(artAngle) * distanceFromCenter;
+                const cameraZ = Math.cos(artAngle) * distanceFromCenter;
+                
+                // Smoothly move to the viewing position
+                gsap.to(camera.position, {
+                    x: cameraX,
+                    y: 0,
+                    z: cameraZ,
+                    duration: 0.8,
+                    ease: "power2.out"
+                });
+                
+                // Calculate the target rotation - point toward the artwork
+                const targetRotationY = artAngle + Math.PI; // Rotate 180° to face the artwork
+                
+                // Find the shortest path for rotation
+                let deltaRotation = targetRotationY - camera.rotation.y;
+                // Normalize to -PI to PI for shortest rotation path
+                while (deltaRotation > Math.PI) deltaRotation -= Math.PI * 2;
+                while (deltaRotation < -Math.PI) deltaRotation += Math.PI * 2;
+                
+                // Apply the rotation
+                gsap.to(camera.rotation, {
+                    y: camera.rotation.y + deltaRotation,
+                    duration: 0.8,
+                    ease: "power2.out"
+                });
+                
+                // Smooth scroll to bottom to ensure UI is visible
+                window.scrollTo({
+                    top: document.body.scrollHeight,
+                    behavior: 'smooth'
+                });
+            }
+        }
+        
+        container.addEventListener('click', onMouseClick);
+        
+        // Touch support for mobile
+        container.addEventListener('touchend', (event) => {
+            if (event.touches.length === 0 && !isDragging) {
+                const touch = event.changedTouches[0];
+                const mouseEvent = new MouseEvent('click', {
+                    clientX: touch.clientX,
+                    clientY: touch.clientY
+                });
+                onMouseClick(mouseEvent);
+            }
+        });
+
+        // Animation loop
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            // Apply auto-rotation when not dragging and no art selected
+            if (!isDragging && !isArtSelected) {
+                camera.rotation.y += DEFAULT_ROTATION_SPEED * 0.1; // Constant horizontal rotation
+            }
+            
+            // Always keep camera parallel to floor/ceiling (no vertical rotation)
+            camera.rotation.x = 0;
+            
+            renderer.render(scene, camera);
+        }
+        
+        // Handle window resize
+        function handleResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+        
+        window.addEventListener('resize', handleResize);
+        
+        // Set initial size
+        handleResize();
+
+        // Start animation
+        animate();
+    </script>
+</body>
+</html>
