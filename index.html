@@ -97,30 +97,39 @@
             border: 15px solid #2c2c2c;
             box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1);
         }
-        
-        #controls {
-            position: absolute;
-            bottom: 20px;
-            right: 20px;
-            z-index: 10;
-            display: flex;
-            gap: 10px;
-        }
-        
-        .control-btn {
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
-            background: rgba(0, 0, 0, 0.5);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            color: white;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            user-select: none;
-            backdrop-filter: blur(5px);
-        }
+
+      #overlay {
+          position: absolute;
+          top: 50%;
+          left: 50%;
+          transform: translate(-50%, -50%);
+          width: auto;
+          height: auto;
+          background: transparent;
+          display: none;
+          z-index: 50;
+          pointer-events: none;
+          transition: opacity 0.3s ease; /* Add transition here */
+          opacity: 0; /* Start invisible */
+      }
+
+      #overlay.show {
+          opacity: 1; /* Fully visible when shown */
+      }
+
+      #overlay-image {
+          max-width: 60vw;
+          max-height: 60vh;
+          object-fit: contain;
+          box-shadow: 0 0 30px rgba(0, 0, 0, 0.8);
+      }
+
+      #overlay-close {
+          position: fixed; /* Keep close button fixed */
+          top: 20px;
+          right: 20px;
+          pointer-events: auto;
+      }
         
         @media (max-width: 768px) {
             .art-title {
@@ -136,6 +145,7 @@
             }
             
             #instructions {
+                top: 45px;
                 width: 90%;
                 font-size: 12px;
             }
@@ -152,8 +162,10 @@
         <div class="art-title" id="art-title">Artwork Title</div>
         <div class="art-description" id="art-description">Artwork description will appear here when you click on a piece.</div>
     </div>
-    <div id="controls">
-        <div class="control-btn" id="reset-view">↻</div>
+    
+    <div id="overlay">
+        <button style="display: none;" id="overlay-close">×</button>
+        <img id="overlay-image" src="" alt="Artwork">
     </div>
 
     <script>
@@ -199,7 +211,6 @@
         const ambientLight = new THREE.AmbientLight(0x404040, 0.8);
         scene.add(ambientLight);
         
-        
         // Add subtle fog for depth
         scene.fog = new THREE.FogExp2(0x111111, 0.05);
         
@@ -224,64 +235,72 @@
         // Art data with updated image URLs
         const artData = [
             {
-                title: "Focused Mindset",
-                description: "Yaara Buda's swirling colors over a quiet girl, painted in 1889. This masterpiece is known for its bold use of color and dramatic, expressive brushwork that evokes strong emotions.",
+                title: "Starry Night",
+                description: "Vincent van Gogh's swirling night sky over a quiet town, painted in 1889. This masterpiece is known for its bold use of color and dramatic, expressive brushwork that evokes strong emotions.",
                 imageUrl: placeholderImages[0],
-                artist: "Yaara Buda",
-                year: "1889"
+                artist: "Vincent van Gogh",
+                year: "1889",
+                aspectRatio: 1.33 // Original aspect ratio
             },
             {
                 title: "The Persistence of Memory",
-                description: "Yaara Buda's surrealist masterpiece from 1931 featuring melting clocks in a dreamlike landscape. This work explores the fluidity of time and the subconscious mind.",
+                description: "Salvador Dalí's surrealist masterpiece from 1931 featuring melting clocks in a dreamlike landscape. This work explores the fluidity of time and the subconscious mind.",
                 imageUrl: placeholderImages[1],
-                artist: "Yaara Buda",
-                year: "1931"
+                artist: "Salvador Dalí",
+                year: "1931",
+                aspectRatio: 1.5
             },
             {
-                title: "Melancholic Winter",
-                description: "A cold silence blankets the scene as bare trees whisper sorrow into the wind. Yaara Buda captures the ache of solitude in a girl in a frozen world, where even time holds its breath in grief.",
+                title: "The Scream",
+                description: "Edvard Munch's iconic expressionist work from 1893 representing human anxiety. The agonized face has become one of the most iconic images of art, seen as symbolizing the anxiety of modern man.",
                 imageUrl: placeholderImages[2],
-                artist: "Yaara Buda",
-                year: "1893"
+                artist: "Edvard Munch",
+                year: "1893",
+                aspectRatio: 1.25
             },
             {
-                title: "Boy with Pearl Pupils",
-                description: "A haunting portrayal of innocence and depth, the boy’s gaze—lit with iridescent pearl-like pupils—pierces time itself. Vermeer captures not just a face, but a soul suspended in silence.",
+                title: "Girl with a Pearl Earring",
+                description: "Johannes Vermeer's mysterious portrait painted around 1665. Often referred to as the 'Mona Lisa of the North', this painting is renowned for its subtle color palette and the subject's enigmatic gaze.",
                 imageUrl: placeholderImages[3],
-                artist: "Yaara Buda",
-                year: "1665"
+                artist: "Johannes Vermeer",
+                year: "1665",
+                aspectRatio: 1.2
             },
             {
                 title: "The Birth of Venus",
-                description: "Yaara Buda's Renaissance painting from 1486 depicting the goddess Venus emerging from the sea. The painting celebrates beauty and love through its elegant composition and flowing lines.",
+                description: "Sandro Botticelli's Renaissance painting from 1486 depicting the goddess Venus emerging from the sea. The painting celebrates beauty and love through its elegant composition and flowing lines.",
                 imageUrl: placeholderImages[4],
-                artist: "Yaara Buda",
-                year: "1486"
+                artist: "Sandro Botticelli",
+                year: "1486",
+                aspectRatio: 1.6
             },
             {
                 title: "Guernica",
-                description: "Yaara Buda's powerful anti-war mural from 1937 depicting the bombing of Guernica during the Spanish Civil War. The monochromatic palette and chaotic composition convey the horror of war.",
+                description: "Pablo Picasso's powerful anti-war mural from 1937 depicting the bombing of Guernica during the Spanish Civil War. The monochromatic palette and chaotic composition convey the horror of war.",
                 imageUrl: placeholderImages[5],
-                artist: "Yaara Buda",
-                year: "1937"
+                artist: "Pablo Picasso",
+                year: "1937",
+                aspectRatio: 2.33
             },
             {
-                title: "Yaara Buda",
-                description: "A depiction of the most beautiful women in creation. Yaara, the bloom in my every season, the hush between the notes where love begins.",
+                title: "The Kiss",
+                description: "Gustav Klimt's golden painting from 1908 of an embracing couple in a field of flowers. This Art Nouveau masterpiece is celebrated for its ornate gold leaf decoration and romantic subject matter.",
                 imageUrl: placeholderImages[6],
-                artist: "God",
-                year: "2005"
+                artist: "Gustav Klimt",
+                year: "1908",
+                aspectRatio: 1.0
             },
             {
-                title: "Colorful Dolphin",
-                description: "A vibrant depiction of a dolphin dancing through kaleidoscopic waves, this piece captures the joy, freedom, and playful spirit of the ocean's most beloved creature.",
+                title: "Mona Lisa",
+                description: "Leonardo da Vinci's enigmatic portrait of Lisa Gherardini painted between 1503-1519. The painting's mysterious smile and masterful sfumato technique have fascinated viewers for centuries.",
                 imageUrl: placeholderImages[7],
-                artist: "Yaara Buda",
-                year: "1503-1519"
+                artist: "Leonardo da Vinci",
+                year: "1503-1519",
+                aspectRatio: 1.5
             }
         ];
 
-        // Create circular hallway with art pieces - completely rewritten
+        // Create circular hallway with art pieces
         for (let i = 0; i < numArtPieces; i++) {
             const angle = (i / numArtPieces) * Math.PI * 2;
             const x = Math.sin(angle) * radius;
@@ -293,8 +312,10 @@
                 artData[i].title
             );
             
-            // Create a plane for the artwork (simpler than a BoxGeometry)
-            const artGeometry = new THREE.PlaneGeometry(2, 1.5);
+
+            const width = 2;
+            const height = 2 ;
+            const artGeometry = new THREE.PlaneGeometry(width, height);
             const artMaterial = new THREE.MeshStandardMaterial({
                 map: debugTexture,
                 emissive: 0x111111,
@@ -315,14 +336,15 @@
             // Store the original angle for camera positioning
             artPiece.userData = {
                 ...artData[i],
-                angle: angle
+                angle: angle,
+                originalMaterial: artMaterial
             };
             
             // Create a frame for the artwork
             const frameWidth = 0.1;
             const frameGeometry = new THREE.BoxGeometry(
-                2 + frameWidth * 2, 
-                1.5 + frameWidth * 2, 
+                width + frameWidth * 2, 
+                height + frameWidth * 2, 
                 0.1
             );
             
@@ -364,6 +386,9 @@
                     currentArtPiece.material.map.needsUpdate = true;
                     currentArtPiece.material.emissiveMap = texture; // Add emissive map
                     console.log(`Successfully loaded texture for ${artData[i].title}`);
+                    
+                    // Store the original image URL for the overlay
+                    currentArtPiece.userData.imageUrl = actualImageUrl;
                 },
                 undefined,
                 (err) => {
@@ -375,13 +400,6 @@
         
         // Add decorative floor with pattern
         const floorGeometry = new THREE.CircleGeometry(radius + 2, 32);
-        //const floorTexture = new THREE.TextureLoader().load('data:image/svg+xml;charset=utf-8,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100"><rect width="100" height="100" fill="%23222222"/><circle cx="50" cy="50" r="40" fill="none" stroke="%23333333" stroke-width="2"/><circle cx="50" cy="50" r="30" fill="none" stroke="%23333333" stroke-width="1"/><circle cx="50" cy="50" r="20" fill="none" stroke="%23333333" stroke-width="1"/></svg>');
-        //const floorTexture = new THREE.TextureLoader().load('data:image/svg+xml;charset=utf-8,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100"><rect width="100" height="100" fill="%23bfa24a"/><path d="M0,0 L100,100 M100,0 L0,100" stroke="%23e5cc74" stroke-width="1" /></svg>');
-        //const floorTexture = new THREE.TextureLoader().load('data:image/svg+xml;charset=utf-8,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><rect width="100" height="100" fill="%23807060"/><path d="M0 50H100M50 0V100" stroke="%23908070" stroke-width="1" /></svg>');
-        //const floorTexture = new THREE.TextureLoader().load('data:image/svg+xml;charset=utf-8,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><rect width="100" height="100" fill="%239c8f70"/><circle cx="50" cy="50" r="30" fill="none" stroke="%23c0b080" stroke-width="2"/></svg>');
-        //const floorTexture = new THREE.TextureLoader().load('data:image/svg+xml;charset=utf-8,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><rect width="100" height="100" fill="%23504030"/><path d="M0 0 L100 100 M0 100 L100 0" stroke="%23605040" stroke-width="0.5"/></svg>');
-        // const floorTexture = new THREE.TextureLoader().load('data:image/svg+xml;charset=utf-8,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><rect width="100" height="100" fill="%23f8f4e3"/><path d="M0 25H100M0 50H100M0 75H100M25 0V100M50 0V100M75 0V100" stroke="%23e6ddc4" stroke-width="1"/></svg>');
-        //const floorTexture = new THREE.TextureLoader().load('data:image/svg+xml;charset=utf-8,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><rect width="100" height="100" fill="%23333333"/><circle cx="50" cy="50" r="40" fill="none" stroke="%23d4af37" stroke-width="2"/><circle cx="50" cy="50" r="30" fill="none" stroke="%23d4af37" stroke-width="1"/></svg>');
         const floorTexture = new THREE.TextureLoader().load(
             'data:image/svg+xml;charset=utf-8,<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 100 100"><rect width="100" height="100" fill="%23333333"/><circle cx="50" cy="50" r="40" fill="none" stroke="%23d4af37" stroke-width="2"/><circle cx="50" cy="50" r="30" fill="none" stroke="%23d4af37" stroke-width="1"/></svg>',
             (tex) => {
@@ -393,7 +411,6 @@
                 tex.needsUpdate = true;
             }
         );
-        //const floorTexture = new THREE.TextureLoader().load('data:image/svg+xml;charset=utf-8,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><rect width="100" height="100" fill="%23807060"/><path d="M0 50H100M50 0V100" stroke="%23605040" stroke-width="1"/></svg>');
 
         floorTexture.wrapS = floorTexture.wrapT = THREE.RepeatWrapping;
         floorTexture.repeat.set(10, 10);
@@ -465,9 +482,29 @@
         const artTitle = document.getElementById('art-title');
         const artDescription = document.getElementById('art-description');
         const closeBtn = document.getElementById('close-btn');
-        const resetViewBtn = document.getElementById('reset-view');
+        const overlay = document.getElementById('overlay');
+        const overlayImage = document.getElementById('overlay-image');
         
-        closeBtn.addEventListener('click', () => {
+        // Close overlay and return to gallery
+        function closeOverlay() {
+            overlay.style.opacity = '1';
+            setTimeout(() => {
+                overlay.style.opacity = '0';
+            }, 50);
+            returnToCenter();
+        }
+        
+        closeBtn.addEventListener('click', closeOverlay);
+        
+        // Close overlay when clicking anywhere else
+        overlay.addEventListener('click', (e) => {
+            if (e.target === overlay) {
+                closeOverlay();
+            }
+        });
+        
+        // Return to center of the room
+        function returnToCenter() {
             uiContainer.classList.remove('show');
             
             // Remove highlight from all art pieces
@@ -487,16 +524,9 @@
                     isArtSelected = false;
                 }
             });
-        });
-
-        resetViewBtn.addEventListener('click', () => {
-            gsap.to(camera.rotation, {
-                y: 0,
-                duration: 1,
-                ease: "power2.out"
-            });
-        });
-
+        }
+        
+        closeBtn.addEventListener('click', returnToCenter);
         // Rotation controls
         let isDragging = false;
         let isArtSelected = false;
@@ -604,6 +634,25 @@
                 // Show UI panel
                 uiContainer.classList.add('show');
                 
+                // Show the image in overlay with no lighting or shadows
+                overlay.style.opacity = '0';
+                overlay.style.display = 'block';
+                setTimeout(() => {
+                    overlay.style.opacity = '1';
+                }, 10);
+overlayImage.src = clickedArt.userData.imageUrl;
+
+// Calculate position based on art piece screen position
+const vector = new THREE.Vector3();
+vector.setFromMatrixPosition(clickedArt.matrixWorld);
+vector.project(camera);
+
+const x = (vector.x * 0.5 + 0.5) * window.innerWidth;
+const y = -(vector.y * 0.5 - 0.5) * window.innerHeight;
+
+// Position overlay near the art piece but ensure it's fully visible
+overlay.style.top = `${Math.min(Math.max(y, 200), window.innerHeight - 300)}px`;
+overlay.style.transform = 'translate(-50%, -50%)';
                 // Fixed approach for viewing artwork: use stored angle to position camera correctly
                 const artAngle = clickedArt.userData.angle;
                 
@@ -658,6 +707,13 @@
                     clientY: touch.clientY
                 });
                 onMouseClick(mouseEvent);
+            }
+        });
+
+        // Close overlay with Escape key
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && overlay.style.display === 'block') {
+                closeOverlay();
             }
         });
 
