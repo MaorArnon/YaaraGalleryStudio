@@ -487,6 +487,7 @@
         
         // Close overlay and return to gallery
         function closeOverlay() {
+            window.parent.postMessage('close', '*');
             overlay.style.opacity = '1';
             setTimeout(() => {
                 overlay.style.opacity = '0';
@@ -614,6 +615,7 @@
             const intersects = raycaster.intersectObjects(artPieces);
             
             if (intersects.length > 0) {
+                window.parent.postMessage('open', '*');
                 isArtSelected = true;
                 const clickedArt = intersects[0].object;
                 
@@ -640,19 +642,19 @@
                 setTimeout(() => {
                     overlay.style.opacity = '1';
                 }, 10);
-overlayImage.src = clickedArt.userData.imageUrl;
-
-// Calculate position based on art piece screen position
-const vector = new THREE.Vector3();
-vector.setFromMatrixPosition(clickedArt.matrixWorld);
-vector.project(camera);
-
-const x = (vector.x * 0.5 + 0.5) * window.innerWidth;
-const y = -(vector.y * 0.5 - 0.5) * window.innerHeight;
-
-// Position overlay near the art piece but ensure it's fully visible
-overlay.style.top = `${Math.min(Math.max(y, 200), window.innerHeight - 300)}px`;
-overlay.style.transform = 'translate(-50%, -50%)';
+                overlayImage.src = clickedArt.userData.imageUrl;
+                
+                // Calculate position based on art piece screen position
+                const vector = new THREE.Vector3();
+                vector.setFromMatrixPosition(clickedArt.matrixWorld);
+                vector.project(camera);
+                
+                const x = (vector.x * 0.5 + 0.5) * window.innerWidth;
+                const y = -(vector.y * 0.5 - 0.5) * window.innerHeight;
+                
+                // Position overlay near the art piece but ensure it's fully visible
+                overlay.style.top = `${Math.min(Math.max(y, 200), window.innerHeight - 300)}px`;
+                overlay.style.transform = 'translate(-50%, -50%)';
                 // Fixed approach for viewing artwork: use stored angle to position camera correctly
                 const artAngle = clickedArt.userData.angle;
                 
